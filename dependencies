@@ -1,0 +1,21 @@
+###################################################
+#
+#   The buildtools repository is at:
+#   https://github.com/foo123/scripts/buildtools
+#
+###################################################
+
+@DEPENDENCIES
+./src/regexanalyzer.js
+
+# TODO, allow some pre-process to take place
+#@PREPROCESS
+
+@REPLACE
+"@@VERSION@@" = "0.1"
+
+# TODO, allow some post-process to take place
+#@POSTPROCESS
+
+@OUT
+./build/regexanalyzer.js

@@ -1,0 +1,32 @@
+Input: /[abc]+/i
+
+Regular Expression: [abc]+
+
+Regular Expression Flags: 
+{ i: 1 }
+
+Regular Expression Parts: 
+[
+    {
+        "part": [
+            {
+                "part": [
+                    "a",
+                    "b",
+                    "c"
+                ],
+                "flags": {},
+                "type": "Chars"
+            }
+        ],
+        "flags": {},
+        "type": "CharGroup"
+    },
+    {
+        "part": "+",
+        "flags": {
+            "MatchOneOrMore": 1
+        },
+        "type": "Special"
+    }
+]
