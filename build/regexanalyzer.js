@@ -111,7 +111,7 @@
         return chars;
     };
     
-    var getPeekChars = function(part, flags) {
+    var getPeekChars = function(part) {
         var peek = {}, negativepeek = {}, current, p, i, l, tmp, done;
         
         // walk the sequence
@@ -189,7 +189,31 @@
                 
                 else if ( "Special" == p.type )
                 {
-                    current['\\' + p.part] = 1;
+                    if ('D' == p.part)
+                    {
+                        if (part.flags.NotMatch)
+                            peek[ '\\d' ] = 1;
+                        else
+                            negativepeek[ '\\d' ] = 1;
+                    }
+                    else if ('W' == p.part)
+                    {
+                        if (part.flags.NotMatch)
+                            peek[ '\\w' ] = 1;
+                        else
+                            negativepeek[ '\\W' ] = 1;
+                    }
+                    else if ('S' == p.part)
+                    {
+                        if (part.flags.NotMatch)
+                            peek[ '\\s' ] = 1;
+                        else
+                            negativepeek[ '\\s' ] = 1;
+                    }
+                    else
+                    {
+                        current['\\' + p.part] = 1;
+                    }
                 }
             }
         }
@@ -201,7 +225,22 @@
         
         else if ( "Special" == part.type && !part.flags.MatchStart && !part.flags.MatchEnd )
         {
-            peek['\\' + part.part] = 1;
+            if ('D' == part.part)
+            {
+                negativepeek[ '\\d' ] = 1;
+            }
+            else if ('W' == part.part)
+            {
+                negativepeek[ '\\W' ] = 1;
+            }
+            else if ('S' == part.part)
+            {
+                negativepeek[ '\\s' ] = 1;
+            }
+            else
+            {
+                peek['\\' + part.part] = 1;
+            }
         }
                 
         else if ( "UnicodeChar" == part.type || "HexChar" == part.type )
@@ -235,9 +274,52 @@
 
         getCharRange : Analyzer.getCharRange,
         
+        // experimental feature
         getPeekChars : function() {
         
-            return getPeekChars(this.parts, this.flags);
+            var isCaseInsensitive = this.flags && this.flags.i;
+            var peek = getPeekChars(this.parts), n, c, p, cases;
+            
+            for (n in peek)
+            {
+                cases = {};
+                // either peek or negativepeek
+                p = peek[n];
+                for (c in p)
+                {
+                    if ('\\d' == c)
+                    {
+                        delete p[c];
+                        cases = concat(cases, getCharRange('0', '9'));
+                    }
+                    
+                    else if ('\\s' == c)
+                    {
+                        delete p[c];
+                        cases = concat(cases, ['\f','\n','\r','\t','\v','\u00A0','\u2028','\u2029']);
+                    }
+                    
+                    else if ('\\w' == c)
+                    {
+                        delete p[c];
+                        cases = concat(cases, ['-'].concat(getCharRange('0', '9')).concat(getCharRange('a', 'z')).concat(getCharRange('A', 'Z')));
+                    }
+                    
+                    else if ('\\.' == c)
+                    {
+                        delete p[c];
+                        cases[ specialChars['.'] ] = 1;
+                    }
+                    
+                    else if ( '\\' != c.charAt(0) && isCaseInsensitive )
+                    {
+                        cases[ c.toLowerCase() ] = 1;
+                        cases[ c.toUpperCase() ] = 1;
+                    }
+                }
+                peek[n] = concat(p, cases);
+            }
+            return peek;
         },
         
         setRegex : function(regex, delim) {
