@@ -302,7 +302,7 @@
                     else if ('\\w' == c)
                     {
                         delete p[c];
-                        cases = concat(cases, ['-'].concat(getCharRange('0', '9')).concat(getCharRange('a', 'z')).concat(getCharRange('A', 'Z')));
+                        cases = concat(cases, ['_'].concat(getCharRange('0', '9')).concat(getCharRange('a', 'z')).concat(getCharRange('A', 'Z')));
                     }
                     
                     else if ('\\.' == c)
