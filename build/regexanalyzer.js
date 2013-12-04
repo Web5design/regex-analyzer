@@ -1,24 +1,11 @@
 /**
 *
 *   A simple Regular Expression Analyzer
-*   @version 0.1
+*   @version 0.2
 *   https://github.com/foo123/regex-analyzer
 *
 **/
 (function(undef){
-        
-    // http://stackoverflow.com/questions/12376870/create-an-array-of-characters-from-specified-range
-    var getCharRange = function(first, last) {
-        var ch, chars, start = first.charCodeAt(0), end = last.charCodeAt(0);
-        
-        if ( end == start ) return [ String.fromCharCode( start ) ];
-        
-        chars = [];
-        for (ch = start; ch <= end; ++ch)
-            chars.push( String.fromCharCode( ch ) );
-        
-        return chars;
-    };
         
     var escapeChar = '\\',
     
@@ -86,13 +73,136 @@
         }
     ;
     
+    // http://stackoverflow.com/questions/12376870/create-an-array-of-characters-from-specified-range
+    var getCharRange = function(first, last) {
+        var ch, chars, start = first.charCodeAt(0), end = last.charCodeAt(0);
+        
+        if ( end == start ) return [ String.fromCharCode( start ) ];
+        
+        chars = [];
+        for (ch = start; ch <= end; ++ch)
+            chars.push( String.fromCharCode( ch ) );
+        
+        return chars;
+    };
+    
+    var to_string = Object.prototype.toString;
+    var concat = function(p1, p2) {
+        if ( p2 && ( p2 instanceof Array || "[object Array]" == to_string.call(p2) ) )
+        {
+            for (var p=0, l=p2.length; p<l; p++)
+            {
+                p1[p2[p]] = 1;
+            }
+        }
+        else
+        {
+            for (var p in p2)
+            {
+                p1[p] = 1;
+            }
+        }
+        return p1;
+    };
+    
+    var getPeekChars = function(part, flags) {
+        var peek = {}, negativepeek = {}, current, p, i, l, tmp, done;
+        
+        // walk the sequence
+        if ( "Alternation" == part.type )
+        {
+            for (i=0, l=part.part.length; i<l; i++)
+            {
+                tmp = getPeekChars( part.part[i] );
+                peek = concat( peek, tmp.peek );
+                negativepeek = concat( negativepeek, tmp.negativepeek );
+            }
+        }
+        
+        else if ( "Group" == part.type )
+        {
+            tmp = getPeekChars( part.part );
+            peek = concat( peek, tmp.peek );
+            negativepeek = concat( negativepeek, tmp.negativepeek );
+        }
+        
+        else if ( "Sequence" == part.type )
+        {
+            i = 0;
+            l = part.part.length;
+            p = part.part[i];
+            done = ( 
+                i >= l || !p || "Quantifier" != p.type || 
+                ( !p.flags.MatchZeroOrMore && !p.flags.MatchZeroOrOne && "0"!=p.flags.MatchMinimum ) 
+            );
+            while ( !done )
+            {
+                tmp = getPeekChars( p.part );
+                peek = concat( peek, tmp.peek );
+                negativepeek = concat( negativepeek, tmp.negativepeek );
+                
+                i++;
+                p = part.part[i];
+                
+                done = ( 
+                    i >= l || !p || "Quantifier" != p.type || 
+                    ( !p.flags.MatchZeroOrMore && !p.flags.MatchZeroOrOne && "0"!=p.flags.MatchMinimum ) 
+                );
+            }
+            if ( i < l )
+            {
+                p = part.part[i];
+                tmp = getPeekChars( ("Quantifier" == p.type) ? p.part : p );
+                peek = concat( peek, tmp.peek );
+                negativepeek = concat( negativepeek, tmp.negativepeek );
+            }
+        }
+        
+        else if ( "CharGroup" == part.type )
+        {
+            current = ( part.flags.NotMatch ) ? negativepeek : peek;
+            
+            for (i=0, l=part.part.length; i<l; i++)
+            {
+                p = part.part[i];
+                
+                if ( "Chars" == p.type )
+                {
+                    current = concat( current, p.part );
+                }
+                
+                else if ( "CharRange" == p.type )
+                {
+                    current = concat( current, getCharRange(p.part) );
+                }
+                
+                else if ( "Special" == p.type )
+                {
+                    current['\\' + p.part] = 1;
+                }
+            }
+        }
+        
+        else if ( "String" == part.type )
+        {
+            peek[part.part.charAt(0)] = 1;
+        }
+        
+        else if ( "Special" == part.type && !part.flags.MatchStart && !part.flags.MatchEnd )
+        {
+            peek['\\' + part.part] = 1;
+        }
+        
+        return { peek: peek, negativepeek: negativepeek };
+    };
+    
     // A simple (js-flavored) regular expression analyzer
     var Analyzer = function( regex, delim ) {
         
-        if ( regex )  this.setRegex(regex, delim);
+        if ( regex ) this.setRegex(regex, delim);
     };
     
-    Analyzer.VERSION = "0.1";
+    Analyzer.VERSION = "0.2";
     Analyzer.getCharRange = getCharRange;
     
     Analyzer.prototype = {
@@ -108,6 +218,11 @@
         parts : null,
 
         getCharRange : Analyzer.getCharRange,
+        
+        getPeekChars : function() {
+        
+            return getPeekChars(this.parts, this.flags);
+        },
         
         setRegex : function(regex, delim) {
             if ( regex )
@@ -136,7 +251,7 @@
         },
         
         analyze : function() {
-            var ch, word = '', parts = [], sequence = [], flag, match, escaped = false;
+            var ch, word = '', alternation = [], sequence = [], flag, match, escaped = false;
             
             this.pos = 0;
             this.groupIndex = 0;
@@ -205,7 +320,7 @@
                             sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( { part: sequence, flags: flag, type: "Sequence" } );
+                        alternation.push( { part: sequence, flags: flag, type: "Sequence" } );
                         sequence = [];
                     }
                     
@@ -304,18 +419,25 @@
                 word = '';
             }
             
-            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
-            sequence = [];
-            flag = {};
-            flag[ specialChars['|'] ] = 1;
-            this.parts = { part: parts, flags: flag, type: "Alternation" } ;
+            if ( alternation.length )
+            {
+                alternation.push( { part: sequence, flags: {}, type: "Sequence" } );
+                sequence = [];
+                flag = {};
+                flag[ specialChars['|'] ] = 1;
+                this.parts = { part: alternation, flags: flag, type: "Alternation" };
+            }
+            else
+            {
+                this.parts = { part: sequence, flags: {}, type: "Sequence" };
+            }
             
             return this;
         },
 
         subgroup : function() {
             
-            var ch, word = '', parts = [], sequence = [], flags = {}, flag, match, escaped = false;
+            var ch, word = '', alternation = [], sequence = [], flags = {}, flag, match, escaped = false;
             
             var pre = this.regex.substr(this.pos, 2);
             
@@ -402,13 +524,13 @@
                             sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        if ( parts.length )
+                        if ( alternation.length )
                         {
-                            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
+                            alternation.push( { part: sequence, flags: {}, type: "Sequence" } );
                             sequence = [];
                             flag = {};
                             flag[ specialChars['|'] ] = 1;
-                            return { part: { part: parts, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
+                            return { part: { part: alternation, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
                         }
                         else
                         {
@@ -521,16 +643,23 @@
                 sequence.push( { part: word, flags: {}, type: "String" } );
                 word = '';
             }
-            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
-            sequence = [];
-            flag = {};
-            flag[ specialChars['|'] ] = 1;
-            return { part: { part: parts, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
+            if ( alternation.length )
+            {
+                alternation.push( { part: sequence, flags: {}, type: "Sequence" } );
+                sequence = [];
+                flag = {};
+                flag[ specialChars['|'] ] = 1;
+                return { part: { part: alternation, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
+            }
+            else
+            {
+                return { part: { part: sequence, flags: {}, type: "Sequence" }, flags: flags, type: "Group" };
+            }
         },
         
         chargroup : function() {
             
-            var parts = [], chars = [], flags = {}, flag, ch, prevch, range, isRange = false, match, isUnicode, escaped = false;
+            var sequence = [], chars = [], flags = {}, flag, ch, prevch, range, isRange = false, match, isUnicode, escaped = false;
             
             if ( '^' == this.regex.charAt( this.pos ) )
             {
@@ -572,12 +701,12 @@
                 {
                     if ( chars.length )
                     {
-                        parts.push( { part: chars, flags: {}, type: "Chars" } );
+                        sequence.push( { part: chars, flags: {}, type: "Chars" } );
                         chars = [];
                     }
                     range[1] = ch;
                     isRange = false;
-                    parts.push( { part: range, flags: {}, type: "CharRange" } );
+                    sequence.push( { part: range, flags: {}, type: "CharRange" } );
                 }
                 else
                 {
@@ -587,12 +716,12 @@
                         {
                             if ( chars.length )
                             {
-                                parts.push( { part: chars, flags: {}, type: "Chars" } );
+                                sequence.push( { part: chars, flags: {}, type: "Chars" } );
                                 chars = [];
                             }
                             flag = {};
                             flag[ specialCharsEscaped[ch] ] = 1;
-                            parts.push( { part: ch, flags: flag, type: "Special" } );
+                            sequence.push( { part: ch, flags: flag, type: "Special" } );
                         }
                         
                         else
@@ -608,10 +737,10 @@
                         {
                             if ( chars.length )
                             {
-                                parts.push( { part: chars, flags: {}, type: "Chars" } );
+                                sequence.push( { part: chars, flags: {}, type: "Chars" } );
                                 chars = [];
                             }
-                            return { part: parts, flags: flags, type: "CharGroup" };
+                            return { part: sequence, flags: flags, type: "CharGroup" };
                         }
                         
                         else if ( '-' == ch )
@@ -630,10 +759,10 @@
             }
             if ( chars.length )
             {
-                parts.push( { part: chars, flags: {}, type: "Chars" } );
+                sequence.push( { part: chars, flags: {}, type: "Chars" } );
                 chars = [];
             }
-            return parts;
+            return { part: sequence, flags: flags, type: "CharGroup" };
         }
     };
         
