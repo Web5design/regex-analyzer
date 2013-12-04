@@ -3,7 +3,7 @@
 
 var echo = console.log;
 var Analyzer = require('../build/regexanalyzer.js');
-var regex = process.argv[2] || /^(?:[^\u0000-\u1234a-zA-Z\d\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\]+)\u1234{1,}/gmi;
+var regex = process.argv[2] || /^(?:[^\u0000-\u1234a-zA-Z\d\-\.\*\+\?\^\$\{\}\(\)\|\[\]\/\\]+)|abcdef\u1234{1,}/gmi;
 
 var anal = new Analyzer(regex);
 

@@ -20,18 +20,15 @@
         return chars;
     };
         
-    // A simple (js-flavored) regular expression analyzer
-    var Analyzer = function( regex, delim ) {
-        
-        this.escapeChar = '\\';
-        
-        this.repeatsRegex = /^\{\s*(\d+)\s*,?\s*(\d+)?\s*\}/;
-        
-        this.unicodeRegex = /^u([0-9a-fA-F]{4})/;
-        
-        this.hexRegex = /^x([0-9a-fA-F]{2})/;
-        
-        this.specialChars = {
+    var escapeChar = '\\',
+    
+        repeatsRegex = /^\{\s*(\d+)\s*,?\s*(\d+)?\s*\}/,
+    
+        unicodeRegex = /^u([0-9a-fA-F]{4})/,
+    
+        hexRegex = /^x([0-9a-fA-F]{2})/,
+    
+        specialChars = {
             "." : "MatchAnyChar",
             "|" : "MatchEither",
             "?" : "MatchZeroOrOne",
@@ -45,8 +42,8 @@
             ")" : "EndGroup",
             "[" : "StartCharGroup",
             "]" : "EndCharGroup"
-        };
-        
+        },
+    
         /*
             http://www.javascriptkit.com/javatutors/redev2.shtml
             
@@ -69,7 +66,7 @@
             \xhh matches the character with two characters of hexadecimal code hh.
             \uhhhh matches the Unicode character with four characters of hexadecimal code hhhh.        
         */
-        this.specialCharsEscaped = {
+        specialCharsEscaped = {
             "\\" : "EscapeChar",
             "/" : "/",
             "0" : "NULChar",
@@ -86,7 +83,11 @@
             "W" : "MatchNonWordChar",
             "d" : "MatchDigitChar",
             "D" : "MatchNonDigitChar"
-        };
+        }
+    ;
+    
+    // A simple (js-flavored) regular expression analyzer
+    var Analyzer = function( regex, delim ) {
         
         if ( regex )  this.setRegex(regex, delim);
     };
@@ -101,21 +102,15 @@
         VERSION : Analyzer.VERSION,
         
         regex : null,
+        groupIndex : null,
         pos : null,
-        escaped : false,
-        repeatsRegex : null,
-        unicodeRegex : null,
-        hexRegex : null,
-        escapeChar : null,
-        specialChars : null,
-        specialCharsEscaped : null,
         flags : null,
         parts : null,
 
         getCharRange : Analyzer.getCharRange,
         
         setRegex : function(regex, delim) {
-            if (regex)
+            if ( regex )
             {
                 this.flags = {};
                 
@@ -141,32 +136,32 @@
         },
         
         analyze : function() {
-            var ch, word = '', parts = [], flag, match;
+            var ch, word = '', parts = [], sequence = [], flag, match, escaped = false;
             
-            this.escaped = false;
             this.pos = 0;
+            this.groupIndex = 0;
             
             while ( this.pos < this.regex.length )
             {
                 ch = this.regex.charAt( this.pos++ );
                 
                 //   \\abc
-                this.escaped = (this.escapeChar == ch) ? true : false;
-                if ( this.escaped )  ch = this.regex.charAt( this.pos++ );
+                escaped = (escapeChar == ch) ? true : false;
+                if ( escaped )  ch = this.regex.charAt( this.pos++ );
                 
-                if ( this.escaped )
+                if ( escaped )
                 {
                     // unicode character
                     if ( 'u' == ch )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "UnicodeChar" } );
+                        sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "UnicodeChar" } );
                     }
                     
                     // hex character
@@ -174,24 +169,24 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.hexRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = hexRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
+                        sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
                     }
                     
-                    else if ( this.specialCharsEscaped[ch] )
+                    else if ( specialCharsEscaped[ch] )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
                         flag = {};
-                        flag[ this.specialCharsEscaped[ch] ] = 1;
-                        parts.push( { part: ch, flags: flag, type: "Special" } );
+                        flag[ specialCharsEscaped[ch] ] = 1;
+                        sequence.push( { part: ch, flags: flag, type: "Special" } );
                     }
                     
                     else
@@ -202,15 +197,27 @@
                 
                 else
                 {
-                    // parse character group
-                    if ( '[' == ch )
+                    // parse alternation
+                    if ( '|' == ch )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( this.chargroup() );
+                        parts.push( { part: sequence, flags: flag, type: "Sequence" } );
+                        sequence = [];
+                    }
+                    
+                    // parse character group
+                    else if ( '[' == ch )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        sequence.push( this.chargroup() );
                     }
                     
                     // parse sub-group
@@ -218,10 +225,10 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( this.subgroup() );
+                        sequence.push( this.subgroup() );
                     }
                     
                     // parse num repeats
@@ -229,25 +236,59 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.repeatsRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = repeatsRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "MatchMinimum": match[1], "MatchMaximum": match[2] || "unlimited" }, type: "Special" } );
+                        sequence.push( { part: sequence.pop(), flags: { part: match[0], "MatchMinimum": match[1], "MatchMaximum": match[2] || "unlimited" }, type: "Quantifier" } );
                     }
                     
-                    // special characters like ^, $, +, ?, * etc..
-                    else if ( this.specialChars[ch] )
+                    // quantifiers
+                    else if ( '*' == ch || '+' == ch )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
                         flag = {};
-                        flag[ this.specialChars[ch] ] = 1;
-                        parts.push( { part: ch, flags: flag, type: "Special" } );
+                        flag[ specialChars[ch] ] = 1;
+                        if ( '?' == this.regex.charAt(this.pos) )
+                        {
+                            flag[ "isGreedy" ] = 0;
+                            this.pos++;
+                        }
+                        else
+                        {
+                            flag[ "isGreedy" ] = 1;
+                        }
+                        sequence.push( { part: sequence.pop(), flags: flag, type: "Quantifier" } );
+                    }
+                
+                    else if ( '?' == ch )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        flag = {};
+                        flag[ specialChars[ch] ] = 1;
+                        sequence.push( { part: sequence.pop(), flags: flag, type: "Quantifier" } );
+                    }
+                
+                    // special characters like ^, $, ., etc..
+                    else if ( specialChars[ch] )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        flag = {};
+                        flag[ specialChars[ch] ] = 1;
+                        sequence.push( { part: ch, flags: flag, type: "Special" } );
                     }
                 
                     else
@@ -259,60 +300,65 @@
             
             if ( word.length )
             {
-                parts.push( { part: word, flags: {}, type: "String" } );
+                sequence.push( { part: word, flags: {}, type: "String" } );
                 word = '';
             }
             
-            this.parts = parts;
+            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
+            sequence = [];
+            flag = {};
+            flag[ specialChars['|'] ] = 1;
+            this.parts = { part: parts, flags: flag, type: "Alternation" } ;
             
             return this;
         },
 
-        alternate : function() { },
-
-
         subgroup : function() {
             
-            var ch, word = '', parts = [], flags = {}, flag, match;
+            var ch, word = '', parts = [], sequence = [], flags = {}, flag, match, escaped = false;
             
-            if ( "?:" == this.regex.substr(this.pos, 2) )
+            var pre = this.regex.substr(this.pos, 2);
+            
+            if ( "?:" == pre )
             {
                 flags[ "NotCaptured" ] = 1;
                 this.pos += 2;
             }
             
-            else if ( "?=" == this.regex.substr(this.pos, 2) )
+            else if ( "?=" == pre )
             {
                 flags[ "LookAhead" ] = 1;
                 this.pos += 2;
             }
             
-            else if ( "?!" == this.regex.substr(this.pos, 2) )
+            else if ( "?!" == pre )
             {
                 flags[ "NegativeLookAhead" ] = 1;
                 this.pos += 2;
             }
             
+            flags[ "GroupIndex" ] = ++this.groupIndex;
+            
             while ( this.pos < this.regex.length )
             {
                 ch = this.regex.charAt( this.pos++ );
                 
-                this.escaped = (this.escapeChar == ch) ? true : false;
-                if ( this.escaped )  ch = this.regex.charAt( this.pos++ );
+                escaped = (escapeChar == ch) ? true : false;
+                if ( escaped )  ch = this.regex.charAt( this.pos++ );
                 
-                if ( this.escaped )
+                if ( escaped )
                 {
                     // unicode character
                     if ( 'u' == ch )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "UnicodeChar" } );
+                        sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "UnicodeChar" } );
                     }
                     
                     // hex character
@@ -320,24 +366,24 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.hexRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = hexRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
+                        sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
                     }
                     
-                    else if ( this.specialCharsEscaped[ch] )
+                    else if ( specialCharsEscaped[ch] )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
                         flag = {};
-                        flag[ this.specialCharsEscaped[ch] ] = 1;
-                        parts.push( { part: ch, flags: flag, type: "Special" } );
+                        flag[ specialCharsEscaped[ch] ] = 1;
+                        sequence.push( { part: ch, flags: flag, type: "Special" } );
                     }
                     
                     else
@@ -353,10 +399,33 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        return { part: parts, flags: flags, type: "Group" };
+                        if ( parts.length )
+                        {
+                            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
+                            sequence = [];
+                            flag = {};
+                            flag[ specialChars['|'] ] = 1;
+                            return { part: { part: parts, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
+                        }
+                        else
+                        {
+                            return { part: { part: sequence, flags: {}, type: "Sequence" }, flags: flags, type: "Group" };
+                        }
+                    }
+                    
+                    // parse alternation
+                    else if ( '|' == ch )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        parts.push( { part: sequence, flags: flag, type: "Sequence" } );
+                        sequence = [];
                     }
                     
                     // parse character group
@@ -364,10 +433,10 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( this.chargroup() );
+                        sequence.push( this.chargroup() );
                     }
                     
                     // parse sub-group
@@ -375,10 +444,10 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( this.subgroup() );
+                        sequence.push( this.subgroup() );
                     }
                     
                     // parse num repeats
@@ -386,25 +455,59 @@
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        match = this.repeatsRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = repeatsRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
-                        parts.push( { part: match[0], flags: { "MatchMinimum": match[1], "MatchMaximum": match[2] || "unlimited" }, type: "Special" } );
+                        sequence.push( { part: sequence.pop(), flags: { part: match[0], "MatchMinimum": match[1], "MatchMaximum": match[2] || "unlimited" }, type: "Quantifier" } );
                     }
                     
-                    // special characters like ^, $, +, ?, * etc..
-                    else if ( this.specialChars[ch] )
+                    // quantifiers
+                    else if ( '*' == ch || '+' == ch )
                     {
                         if ( word.length )
                         {
-                            parts.push( { part: word, flags: {}, type: "String" } );
+                            sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
                         flag = {};
-                        flag[ this.specialChars[ch] ] = 1;
-                        parts.push( { part: ch, flags: flag, type: "Special" } );
+                        flag[ specialChars[ch] ] = 1;
+                        if ( '?' == this.regex.charAt(this.pos) )
+                        {
+                            flag[ "isGreedy" ] = 0;
+                            this.pos++;
+                        }
+                        else
+                        {
+                            flag[ "isGreedy" ] = 1;
+                        }
+                        sequence.push( { part: sequence.pop(), flags: flag, type: "Quantifier" } );
+                    }
+                
+                    else if ( '?' == ch )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        flag = {};
+                        flag[ specialChars[ch] ] = 1;
+                        sequence.push( { part: sequence.pop(), flags: flag, type: "Quantifier" } );
+                    }
+                
+                    // special characters like ^, $, ., etc..
+                    else if ( specialChars[ch] )
+                    {
+                        if ( word.length )
+                        {
+                            sequence.push( { part: word, flags: {}, type: "String" } );
+                            word = '';
+                        }
+                        flag = {};
+                        flag[ specialChars[ch] ] = 1;
+                        sequence.push( { part: ch, flags: flag, type: "Special" } );
                     }
                 
                     else
@@ -413,12 +516,21 @@
                     }
                 }
             }
-            return { part: word, flags: flags, type: "Group" };
+            if ( word.length )
+            {
+                sequence.push( { part: word, flags: {}, type: "String" } );
+                word = '';
+            }
+            parts.push( { part: sequence, flags: {}, type: "Sequence" } );
+            sequence = [];
+            flag = {};
+            flag[ specialChars['|'] ] = 1;
+            return { part: { part: parts, flags: flag, type: "Alternation" }, flags: flags, type: "Group" };
         },
         
         chargroup : function() {
             
-            var parts = [], chars = [], flags = {}, flag, ch, prevch, range, isRange = false, match, isUnicode;
+            var parts = [], chars = [], flags = {}, flag, ch, prevch, range, isRange = false, match, isUnicode, escaped = false;
             
             if ( '^' == this.regex.charAt( this.pos ) )
             {
@@ -432,15 +544,15 @@
                 prevch = ch;
                 ch = this.regex.charAt( this.pos++ );
                 
-                this.escaped = (this.escapeChar == ch) ? true : false;
-                if ( this.escaped )  ch = this.regex.charAt( this.pos++ );
+                escaped = (escapeChar == ch) ? true : false;
+                if ( escaped )  ch = this.regex.charAt( this.pos++ );
                 
-                if ( this.escaped )
+                if ( escaped )
                 {
                     // unicode character
                     if ( 'u' == ch )
                     {
-                        match = this.unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = unicodeRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
                         ch = String.fromCharCode(parseInt(match[1], 16));
                         isUnicode = true;
@@ -449,7 +561,7 @@
                     // hex character
                     else if ( 'x' == ch )
                     {
-                        match = this.hexRegex.exec( this.regex.substr( this.pos-1 ) );
+                        match = hexRegex.exec( this.regex.substr( this.pos-1 ) );
                         this.pos += match[0].length-1;
                         ch = String.fromCharCode(parseInt(match[1], 16));
                         isUnicode = true;
@@ -469,9 +581,9 @@
                 }
                 else
                 {
-                    if ( this.escaped )
+                    if ( escaped )
                     {
-                        if ( !isUnicode && this.specialCharsEscaped[ch] )
+                        if ( !isUnicode && specialCharsEscaped[ch] )
                         {
                             if ( chars.length )
                             {
@@ -479,7 +591,7 @@
                                 chars = [];
                             }
                             flag = {};
-                            flag[ this.specialCharsEscaped[ch] ] = 1;
+                            flag[ specialCharsEscaped[ch] ] = 1;
                             parts.push( { part: ch, flags: flag, type: "Special" } );
                         }
                         
@@ -521,7 +633,7 @@
                 parts.push( { part: chars, flags: {}, type: "Chars" } );
                 chars = [];
             }
-            return { part: chars, flags: flags, type: "CharGroup" };
+            return parts;
         }
     };
         

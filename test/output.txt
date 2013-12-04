@@ -1,32 +1,56 @@
-Input: /[abc]+/i
+Input: /([abc]+)/gi
 
-Regular Expression: [abc]+
+Regular Expression: ([abc]+)
 
 Regular Expression Flags: 
-{ i: 1 }
+{ i: 1, g: 1 }
 
 Regular Expression Parts: 
-[
-    {
-        "part": [
-            {
-                "part": [
-                    "a",
-                    "b",
-                    "c"
-                ],
-                "flags": {},
-                "type": "Chars"
-            }
-        ],
-        "flags": {},
-        "type": "CharGroup"
+{
+    "part": [
+        {
+            "part": [
+                {
+                    "part": {
+                        "part": [
+                            {
+                                "part": {
+                                    "part": [
+                                        {
+                                            "part": [
+                                                "a",
+                                                "b",
+                                                "c"
+                                            ],
+                                            "flags": {},
+                                            "type": "Chars"
+                                        }
+                                    ],
+                                    "flags": {},
+                                    "type": "CharGroup"
+                                },
+                                "flags": {
+                                    "MatchOneOrMore": 1,
+                                    "isGreedy": 1
+                                },
+                                "type": "Quantifier"
+                            }
+                        ],
+                        "flags": {},
+                        "type": "Sequence"
+                    },
+                    "flags": {
+                        "GroupIndex": 1
+                    },
+                    "type": "Group"
+                }
+            ],
+            "flags": {},
+            "type": "Sequence"
+        }
+    ],
+    "flags": {
+        "MatchEither": 1
     },
-    {
-        "part": "+",
-        "flags": {
-            "MatchOneOrMore": 1
-        },
-        "type": "Special"
-    }
-]
+    "type": "Alternation"
+}
