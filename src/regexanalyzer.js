@@ -73,20 +73,8 @@
         }
     ;
     
-    // http://stackoverflow.com/questions/12376870/create-an-array-of-characters-from-specified-range
-    var getCharRange = function(first, last) {
-        var ch, chars, start = first.charCodeAt(0), end = last.charCodeAt(0);
-        
-        if ( end == start ) return [ String.fromCharCode( start ) ];
-        
-        chars = [];
-        for (ch = start; ch <= end; ++ch)
-            chars.push( String.fromCharCode( ch ) );
-        
-        return chars;
-    };
-    
     var to_string = Object.prototype.toString;
+    
     var concat = function(p1, p2) {
         if ( p2 && ( p2 instanceof Array || "[object Array]" == to_string.call(p2) ) )
         {
@@ -103,6 +91,24 @@
             }
         }
         return p1;
+    };
+    
+    // http://stackoverflow.com/questions/12376870/create-an-array-of-characters-from-specified-range
+    var getCharRange = function(first, last) {
+        if ( first && ( first instanceof Array || "[object Array]" == to_string.call(first) ) )
+        {
+            last = first[1];
+            first = first[0];
+        }
+        var ch, chars, start = first.charCodeAt(0), end = last.charCodeAt(0);
+        
+        if ( end == start ) return [ String.fromCharCode( start ) ];
+        
+        chars = [];
+        for (ch = start; ch <= end; ++ch)
+            chars.push( String.fromCharCode( ch ) );
+        
+        return chars;
     };
     
     var getPeekChars = function(part, flags) {
@@ -176,6 +182,11 @@
                     current = concat( current, getCharRange(p.part) );
                 }
                 
+                else if ( "UnicodeChar" == p.type || "HexChar" == p.type )
+                {
+                    current[p.flags.Char] = 1;
+                }
+                
                 else if ( "Special" == p.type )
                 {
                     current['\\' + p.part] = 1;
@@ -191,6 +202,11 @@
         else if ( "Special" == part.type && !part.flags.MatchStart && !part.flags.MatchEnd )
         {
             peek['\\' + part.part] = 1;
+        }
+                
+        else if ( "UnicodeChar" == part.type || "HexChar" == part.type )
+        {
+            peek[part.flags.Char] = 1;
         }
         
         return { peek: peek, negativepeek: negativepeek };
