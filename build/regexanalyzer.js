@@ -1,7 +1,7 @@
 /**
 *
 *   A simple Regular Expression Analyzer
-*   @version 0.2
+*   @version 0.2.1
 *   https://github.com/foo123/regex-analyzer
 *
 **/
@@ -158,9 +158,17 @@
             if ( i < l )
             {
                 p = part.part[i];
-                tmp = getPeekChars( ("Quantifier" == p.type) ? p.part : p );
-                peek = concat( peek, tmp.peek );
-                negativepeek = concat( negativepeek, tmp.negativepeek );
+                
+                if ("Special" == p.type && ('^'==p.part || '$'==p.part)) p = part.part[i+1] || null;
+                
+                if (p && "Quantifier" == p.type) p = p.part;
+                
+                if (p)
+                {
+                    tmp = getPeekChars( p );
+                    peek = concat( peek, tmp.peek );
+                    negativepeek = concat( negativepeek, tmp.negativepeek );
+                }
             }
         }
         
@@ -257,7 +265,7 @@
         if ( regex ) this.setRegex(regex, delim);
     };
     
-    Analyzer.VERSION = "0.2";
+    Analyzer.VERSION = "0.2.1";
     Analyzer.getCharRange = getCharRange;
     
     Analyzer.prototype = {
@@ -311,10 +319,27 @@
                         cases[ specialChars['.'] ] = 1;
                     }
                     
+                    /*else if ('\\^' == c)
+                    {
+                        delete p[c];
+                        cases[ specialChars['^'] ] = 1;
+                    }
+                    
+                    else if ('\\$' == c)
+                    {
+                        delete p[c];
+                        cases[ specialChars['$'] ] = 1;
+                    }*/
+                    
                     else if ( '\\' != c.charAt(0) && isCaseInsensitive )
                     {
                         cases[ c.toLowerCase() ] = 1;
                         cases[ c.toUpperCase() ] = 1;
+                    }
+                    
+                    else if ( '\\' == c.charAt(0) )
+                    {
+                        delete p[c];
                     }
                 }
                 peek[n] = concat(p, cases);
@@ -390,7 +415,7 @@
                         sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
                     }
                     
-                    else if ( specialCharsEscaped[ch] )
+                    else if ( specialCharsEscaped[ch] && '/' != ch)
                     {
                         if ( word.length )
                         {
@@ -418,7 +443,7 @@
                             sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        alternation.push( { part: sequence, flags: flag, type: "Sequence" } );
+                        alternation.push( { part: sequence, flags: {}, type: "Sequence" } );
                         sequence = [];
                     }
                     
@@ -594,7 +619,7 @@
                         sequence.push( { part: match[0], flags: { "Char": String.fromCharCode(parseInt(match[1], 16)), "Code": match[1] }, type: "HexChar" } );
                     }
                     
-                    else if ( specialCharsEscaped[ch] )
+                    else if ( specialCharsEscaped[ch] && '/' != ch)
                     {
                         if ( word.length )
                         {
@@ -644,7 +669,7 @@
                             sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( { part: sequence, flags: flag, type: "Sequence" } );
+                        parts.push( { part: sequence, flags: {}, type: "Sequence" } );
                         sequence = [];
                     }
                     
@@ -810,7 +835,7 @@
                 {
                     if ( escaped )
                     {
-                        if ( !isUnicode && specialCharsEscaped[ch] )
+                        if ( !isUnicode && specialCharsEscaped[ch] && '/' != ch)
                         {
                             if ( chars.length )
                             {
