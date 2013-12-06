@@ -669,7 +669,7 @@
                             sequence.push( { part: word, flags: {}, type: "String" } );
                             word = '';
                         }
-                        parts.push( { part: sequence, flags: {}, type: "Sequence" } );
+                        alternation.push( { part: sequence, flags: {}, type: "Sequence" } );
                         sequence = [];
                     }
                     
