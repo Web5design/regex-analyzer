@@ -10,4 +10,6 @@ It needs a couple of extensions but overall works good.
 
 See /test/test.js under /test folder for examples of how to use
 
-__Live Example:__  https://foo123.github.com/examples/regex-analyzer/
+__Live Example:__  
+
+[![Live Example](/test/screenshot.png)](https://foo123.github.com/examples/regex-analyzer/)
